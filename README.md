@@ -1,17 +1,10 @@
-# Pi_MCP23S17
+# Pico_MCP23S17
 
 This library is based on [RPi-MCP23S17](https://github.com/petrockblog/RPi-MCP23S17/blob/master/RPiMCP23S17/MCP23S17.py).
 
-This library did not work for me, so I made some changes and created my own version.
-
-Requirements:
-```
-sudo apt-get install python-dev python-pip
-sudo pip install RPi.GPIO
-sudo pip install spidev
-```
+This library is compatible with the MicroPython for the Raspberry Pi Pico and RP2040 Microcontrollers.
 
 To use it (it must be in the same directory):
 ```Python
-from Pi_MCP23S17 import MCP23S17
+from Pico_MCP23S17 import MCP23S17
 ```

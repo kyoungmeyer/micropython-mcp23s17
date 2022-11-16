@@ -1,6 +1,12 @@
 #!/usr/bin/python
 
-import spidev
+# Pi Pico MCP23S17 SPI Implementation
+# 2022 Kyle Nahas
+# Forked from jebentancour's version of Pi_MCP23S17
+# https://github.com/jebentancour/Pi_MCP23S17
+# Modified with the help of https://docs.micropython.org/en/latest/library/machine.SPI.html#machine-spi
+
+import machine
 
 class MCP23S17(object):
     """This class provides an abstraction of the GPIO expander MCP23S17
@@ -47,17 +53,35 @@ class MCP23S17(object):
     MCP23S17_CMD_WRITE = 0x40
     MCP23S17_CMD_READ = 0x41
 
-    def __init__(self, bus=0, ce=0, deviceID=0x00):
+    def __init__(self, deviceID=0x00, spi=None, bus=0, speed=1000000,
+                 sck=18, mosi=19, miso=16, cs=14):
         """Constructor
-        Initializes all attributes with 0.
+
         Keyword arguments:
-        bus -- The SPI bus number
-        ce -- The chip-enable number for the SPI
-        deviceID -- The device ID of the component, i.e., the hardware address (default 0.0)
+        deviceID -- The device ID of the component, i.e., the hardware address (default 0.0),
+        spi -- optional argument which passes pre-initialized SPI bus,
+        bus -- The SPI Bus to Initialize,
+        speed -- The speed to run the SPI bus at,
+        sck -- The pin number for the spi clock pin,
+        mosi -- The pin number for the MOSI pin,
+        miso -- The pin number for the MISO pin,
+        ce -- The pin number for the chip-enable pin
+
         """
-        self.spi = spidev.SpiDev()
-        self.bus = bus
-        self.ce = ce
+        if not spi:
+            self.spi = machine.SPI(bus,
+                      baudrate=speed,
+                      polarity=1,
+                      phase=1,
+                      bits=8,
+                      firstbit=machine.SPI.MSB,
+                      sck=machine.Pin(sck),
+                      mosi=machine.Pin(mosi),
+                      miso=machine.Pin(miso))
+        else:
+            self.spi = spi
+
+        self.cs = machine.Pin(cs, Pin.OUT, value=1)
         self.deviceID = deviceID
         self._GPIOA = 0x00
         self._GPIOB = 0x00
@@ -71,8 +95,8 @@ class MCP23S17(object):
         """Initializes the MCP23S17 with hardware-address access
         and sequential operations mode.
         """
-        self.spi.open(self.bus, self.ce)
-        self.spi.max_speed_hz = 10000000
+        # self.spi.open(self.bus, self.ce)
+        # self.spi.max_speed_hz = 10000000
         self.isInitialized = True
 
         self._writeRegister(MCP23S17.MCP23S17_IOCON, MCP23S17.IOCON_INIT)
@@ -280,14 +304,28 @@ class MCP23S17(object):
         assert(self.isInitialized)
 
         command = MCP23S17.MCP23S17_CMD_WRITE | ((self.deviceID) << 1)
-        self.spi.xfer2([command, register, value])
+        data_out = bytearray([command, register, value])
+        # self.spi.xfer2([command, register, value])
+        try:
+            self.cs.value(0)
+            self.spi.write(data_out)
+        finally:
+            self.cs.value(1)
+
 
     def _readRegister(self, register):
         assert(self.isInitialized)
 
         command = MCP23S17.MCP23S17_CMD_READ | ((self.deviceID) << 1)
-        data = self.spi.xfer2([command, register, 0])
-        return data[2]
+        data_out = bytearray([command, register, 0])
+        data_in = bytearray(len(data_out))
+        # data = self.spi.xfer2([command, register, 0])
+        # return data[2]
+        try:
+            self.cs.value(0)
+            self.spi.write_readinto(data_out, data_in)
+        finally:
+            self.cs.value(1)
 
     def _readRegisterWord(self, register):
         assert(self.isInitialized)
@@ -299,6 +337,5 @@ class MCP23S17(object):
 
     def _writeRegisterWord(self, register, data):
         assert(self.isInitialized)
-
         self._writeRegister(register, data & 0xFF)
-		self._writeRegister(register + 1, data >> 8)
+        self._writeRegister(register + 1, data >> 8)
